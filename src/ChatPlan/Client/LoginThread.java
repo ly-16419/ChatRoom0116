@@ -7,9 +7,7 @@ import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.security.NoSuchAlgorithmException;
 import java.sql.*;
 import javax.swing.JButton;
@@ -87,8 +85,8 @@ public class LoginThread extends Thread {
             public void actionPerformed(ActionEvent e) {
                 String username = loginname.getText();
                 String password = loginPassword.getText();
-                PreparedStatement pstmt=null;
-                String sql="";
+                PreparedStatement pstmt = null;
+                String sql = "";
                 try {
                     String url = "jdbc:oracle:thin:@localhost:1521:orcl";
                     String username_db = "opts";
@@ -96,26 +94,44 @@ public class LoginThread extends Thread {
                     Connection conn = DriverManager.getConnection(url, username_db, password_db);
                     sql = "SELECT password FROM users WHERE username=?";
                     pstmt = conn.prepareStatement(sql);
-                    pstmt.setString(1,username);
+                    pstmt.setString(1, username);
                     ResultSet rs = pstmt.executeQuery();
                     if (rs.next()) {
                         String encodePassword = rs.getString("PASSWORD");
                         if (MD5.checkpassword(password, encodePassword)) {
                             //获取IP地址，将其添加到数据库中
                             InetAddress addr = InetAddress.getLocalHost();
-                            System.out.println("本机IP地址: "+addr.getHostAddress());
-                            sql="UPDATE users SET ip=?,port=8888 WHERE username=?";
-                            pstmt=conn.prepareStatement(sql);
-                            pstmt.setString(1,addr.getHostAddress());
-                            pstmt.setString(2,username);
-                            System.out.println("sss");
+                            System.out.println("本机IP地址: " + addr.getHostAddress());
+
+                            //异常处理端口占用问题
+                            int port = 1688;
+                            while (true) {
+                                try {
+                                    //创建在port端口基础上的连接，如果被占用则++
+                                    DatagramSocket soc = new DatagramSocket(port);
+                                    System.out.println("port：" + port + "，调试完成！");
+                                    break;
+                                } catch (SocketException ex) {
+                                    port++;
+                                    System.out.println("端口被占用，正在调试，请稍等");
+                                }
+                            }
+
+                            sql = "UPDATE users SET ip=?,port=?,status=? WHERE username=?";
+                            pstmt = conn.prepareStatement(sql);
+                            pstmt.setString(1, addr.getHostAddress());
+                            pstmt.setInt(2, port);
+                            pstmt.setString(3, "online");//如果登录成功，则将登录状态该为online
+                            pstmt.setString(4, username);
                             pstmt.executeUpdate();
                             //隐藏登陆窗口，打开聊天窗口
                             loginf.setVisible(false);
-                            ChatThreadWindow chatThreadWindow=new ChatThreadWindow();
+                            ChatThreadWindow chatThreadWindow = new ChatThreadWindow();
                         } else {
                             System.out.println("登录失败");
                         }
+                    } else {
+                        System.out.println("未能获取数据");
                     }
 
                 } catch (SQLException ee) {
@@ -134,7 +150,6 @@ public class LoginThread extends Thread {
 				 */
             }
         }
-
 
 
         ButtonListener bl = new ButtonListener();
